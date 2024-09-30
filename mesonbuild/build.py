@@ -1451,6 +1451,13 @@ class BuildTarget(Target):
                         self._bundle_static_library(lib, True)
             self.link_whole_targets.append(t)
 
+    def link_whole_recurse(self):
+        for t in self.link_targets:
+            if t not in self.link_whole_targets:
+                t.link_whole_recurse()
+                self.link_whole([t])
+        self.link_targets = []
+
     @lru_cache(maxsize=None)
     def get_internal_static_libraries(self) -> OrderedSet[BuildTargetTypes]:
         result: OrderedSet[BuildTargetTypes] = OrderedSet()

@@ -360,9 +360,10 @@ class InternalDependency(Dependency):
                 raise MesonException('Cannot convert a dependency to link_whole when it contains a '
                                      'CustomTarget or CustomTargetIndex which is a shared library')
 
-        # Mypy doesn't understand that the above is a TypeGuard
-        new_dep.whole_libraries += T.cast('T.List[T.Union[StaticLibrary, CustomTarget, CustomTargetIndex]]',
-                                          new_dep.libraries)
+        for lib in self.libraries:
+            lib.link_whole_recurse()
+            new_dep.whole_libraries += [lib]
+
         new_dep.libraries = []
         return new_dep
 
