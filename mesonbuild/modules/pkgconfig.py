@@ -274,9 +274,9 @@ class DependenciesHelper:
         # Keep track of link_whole_targets so we can remove them from our
         # lists in case a library is link_with and link_whole at the same time.
         # See remove_dups() below.
-        self.link_whole_targets.append(t)
         if isinstance(t, build.BuildTarget):
-            self._add_lib_dependencies(t.link_targets, t.link_whole_targets, t.external_deps, public)
+            # self._add_lib_dependencies(t.link_targets, t.link_whole_targets, t.external_deps, public)
+            self._add_lib_dependencies([], t.link_whole_targets, t.external_deps, public)
 
     def add_version_reqs(self, name: str, version_reqs: T.Optional[T.List[str]]) -> None:
         if version_reqs:
