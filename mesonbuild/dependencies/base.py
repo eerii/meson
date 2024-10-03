@@ -361,11 +361,20 @@ class InternalDependency(Dependency):
                                      'CustomTarget or CustomTargetIndex which is a shared library')
 
         for lib in self.libraries:
-            lib.link_whole_recurse()
+            targets = list(self.link_whole_recurse(lib))
+            lib.link_targets = []
+            lib.link_whole(targets)
             new_dep.whole_libraries += [lib]
 
         new_dep.libraries = []
         return new_dep
+
+    def link_whole_recurse(self, lib):
+        targets = set()
+        for t in lib.link_targets:
+            targets.add(t)
+            targets |= self.link_whole_recurse(t)
+        return targets
 
     def get_as_static(self, recursive: bool) -> InternalDependency:
         new_dep = copy.copy(self)
