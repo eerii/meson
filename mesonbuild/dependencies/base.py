@@ -353,6 +353,7 @@ class InternalDependency(Dependency):
             return val
         raise DependencyException(f'Could not get an internal variable and no default provided for {self!r}')
 
+    # TODO: Add recursive argument
     def generate_link_whole_dependency(self) -> Dependency:
         from ..build import SharedLibrary, CustomTarget, CustomTargetIndex
         new_dep = copy.deepcopy(self)
@@ -368,8 +369,9 @@ class InternalDependency(Dependency):
         new_dep.libraries = []
         new_dep.ext_deps = []
 
+        # TODO: Check for c++ library?
         for lib in self.libraries:
-            whole_targets, dyn_targets, exts = self.link_whole_recurse(lib)
+            whole_targets, dyn_targets, exts = lib.get_recursive_targets()
             new_dep.whole_libraries += [lib] + list(whole_targets)
             new_dep.libraries += list(dyn_targets)
             ext_deps += list(exts)
@@ -380,26 +382,6 @@ class InternalDependency(Dependency):
             new_dep.ext_deps += [dep]
 
         return new_dep
-
-    def link_whole_recurse(self, lib):
-        from ..build import SharedLibrary, CustomTarget, CustomTargetIndex
-        whole_targets = set()
-        dyn_targets = set()
-        exts = set()
-        for t in lib.link_targets:
-            if isinstance(t, SharedLibrary) or (isinstance(t, (CustomTarget, CustomTargetIndex)) and t.links_dynamically()):
-                dyn_targets.add(t)
-                continue
-            whole_targets.add(t)
-            wt, dt, e = self.link_whole_recurse(t)
-            whole_targets |= wt
-            dyn_targets |= dt
-            exts |= e
-        for dep in lib.external_deps:
-            if isinstance(dep, InternalDependency):
-                continue
-            exts.add(dep)
-        return whole_targets, dyn_targets, exts
 
     def get_as_static(self, recursive: bool) -> InternalDependency:
         new_dep = copy.copy(self)
