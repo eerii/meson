@@ -364,33 +364,42 @@ class InternalDependency(Dependency):
                 raise MesonException('Cannot convert a dependency to link_whole when it contains a '
                                      'CustomTarget or CustomTargetIndex which is a shared library')
 
-        for lib in self.libraries:
-            targets, exts = self.link_whole_recurse(lib)
-            lib.link_targets = []
-            lib.link_whole(list(targets))
-            print("LIIIIBS", targets)
-            print("EXTS", exts)
-            new_dep.whole_libraries += [lib]
-            new_dep.ext_deps += list(exts)
-
-        # TODO: Custom targets (ftconfig), generated objects
-
+        ext_deps = self.ext_deps
         new_dep.libraries = []
+        new_dep.ext_deps = []
+
+        for lib in self.libraries:
+            whole_targets, dyn_targets, exts = self.link_whole_recurse(lib)
+            new_dep.whole_libraries += [lib] + list(whole_targets)
+            new_dep.libraries += list(dyn_targets)
+            ext_deps += list(exts)
+
+        for dep in ext_deps:
+            if isinstance(dep, InternalDependency) and (len(dep.libraries) > 0 or len(dep.ext_deps) > 0):
+                dep = dep.generate_link_whole_dependency()
+            new_dep.ext_deps += [dep]
+
         return new_dep
 
     def link_whole_recurse(self, lib):
-        targets = set()
+        from ..build import SharedLibrary, CustomTarget, CustomTargetIndex
+        whole_targets = set()
+        dyn_targets = set()
         exts = set()
         for t in lib.link_targets:
-            targets.add(t)
-            new_targets, new_exts = self.link_whole_recurse(t)
-            targets |= new_targets
-            exts |= new_exts
+            if isinstance(t, SharedLibrary) or (isinstance(t, (CustomTarget, CustomTargetIndex)) and t.links_dynamically()):
+                dyn_targets.add(t)
+                continue
+            whole_targets.add(t)
+            wt, dt, e = self.link_whole_recurse(t)
+            whole_targets |= wt
+            dyn_targets |= dt
+            exts |= e
         for dep in lib.external_deps:
             if isinstance(dep, InternalDependency):
                 continue
             exts.add(dep)
-        return targets, exts
+        return whole_targets, dyn_targets, exts
 
     def get_as_static(self, recursive: bool) -> InternalDependency:
         new_dep = copy.copy(self)
