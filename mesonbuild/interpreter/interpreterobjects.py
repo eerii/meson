@@ -912,6 +912,7 @@ class BuildTargetHolder(ObjectHolder[_BuildTarget]):
                              'path': self.path_method,
                              'found': self.found_method,
                              'private_dir_include': self.private_dir_include_method,
+                             'all_libraries': self.all_libraries_method,
                              })
 
     def __repr__(self) -> str:
@@ -992,6 +993,12 @@ class BuildTargetHolder(ObjectHolder[_BuildTarget]):
     @noKwargs
     def name_method(self, args: T.List[TYPE_var], kwargs: TYPE_kwargs) -> str:
         return self._target_object.name
+
+    @FeatureNew('all_libraries', '1.6.0')
+    @noPosargs
+    @noKwargs
+    def all_libraries_method(self, args: T.List[TYPE_var], kwargs: TYPE_kwargs) -> T.List[LibTypes]:
+        return self._target_object.extract_targets_as_list(kwargs, 'link_with') + self._target_object.extract_targets_as_list(kwargs, 'link_whole')
 
 class ExecutableHolder(BuildTargetHolder[build.Executable]):
     pass

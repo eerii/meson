@@ -269,6 +269,10 @@ class Dependency(HoldableObject):
         """Used as base case for internal_dependency"""
         return self
 
+    def get_all_libraries(self) -> T.List[LibTypes]:
+        """Used as base case for internal_dependency"""
+        return []
+
 class InternalDependency(Dependency):
     def __init__(self, version: str, incdirs: T.List['IncludeDirs'], compile_args: T.List[str],
                  link_args: T.List[str],
@@ -368,6 +372,8 @@ class InternalDependency(Dependency):
             print("EXTS", exts)
             new_dep.whole_libraries += [lib]
             new_dep.ext_deps += list(exts)
+
+        # TODO: Custom targets (ftconfig), generated objects
 
         new_dep.libraries = []
         return new_dep
