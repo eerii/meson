@@ -580,13 +580,24 @@ class DependencyHolder(ObjectHolder[Dependency]):
         return self.held_object.generate_system_dependency(args[0] or 'system')
 
     @FeatureNew('dependency.as_link_whole', '0.56.0')
-    @noKwargs
     @noPosargs
-    def as_link_whole_method(self, args: T.List[TYPE_var], kwargs: TYPE_kwargs) -> Dependency:
+    @typed_kwargs(
+        'dependency.as_link_whole',
+        KwargInfo('recursive', bool, default=False),
+    )
+    def as_link_whole_method(self, args: T.List[TYPE_var], kwargs: InternalDependencyAsKW) -> Dependency:
         if not isinstance(self.held_object, InternalDependency):
             raise InterpreterException('as_link_whole method is only supported on declare_dependency() objects')
-        new_dep = self.held_object.generate_link_whole_dependency()
-        return new_dep
+        import time
+        a = time.time()
+        dep = self.held_object.generate_link_whole_dependency(kwargs['recursive'])
+        print("TIME:", time.time() - a)
+        print("W", len(dep.whole_libraries))
+        print("L", len(dep.libraries))
+        print("E", len(dep.ext_deps))
+        print(dep.whole_libraries)
+        print(dep.ext_deps)
+        return dep
 
     @FeatureNew('dependency.as_static', '1.6.0')
     @noPosargs
@@ -997,8 +1008,9 @@ class BuildTargetHolder(ObjectHolder[_BuildTarget]):
     @FeatureNew('all_libraries', '1.6.0')
     @noPosargs
     @noKwargs
-    def all_libraries_method(self, args: T.List[TYPE_var], kwargs: TYPE_kwargs) -> T.List[LibTypes]:
-        return self._target_object.extract_targets_as_list(kwargs, 'link_with') + self._target_object.extract_targets_as_list(kwargs, 'link_whole')
+    def all_libraries_method(self, args: T.List[TYPE_var], kwargs: TYPE_kwargs) -> T.List[build.LibTypes]:
+        return list(set(self._target_object.link_targets) |
+                    set(self._target_object.link_whole_targets))
 
 class ExecutableHolder(BuildTargetHolder[build.Executable]):
     pass

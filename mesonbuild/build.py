@@ -51,6 +51,7 @@ if T.TYPE_CHECKING:
 
     GeneratedTypes = T.Union['CustomTarget', 'CustomTargetIndex', 'GeneratedList']
     LibTypes = T.Union['SharedLibrary', 'StaticLibrary', 'CustomTarget', 'CustomTargetIndex']
+    WholeLibTypes = T.Union['StaticLibrary', 'CustomTarget', 'CustomTargetIndex']
     BuildTargetTypes = T.Union['BuildTarget', 'CustomTarget', 'CustomTargetIndex']
     ObjectTypes = T.Union[str, 'File', 'ExtractedObjects', 'GeneratedTypes']
 
@@ -1746,25 +1747,21 @@ class BuildTarget(Target):
         lib_list = listify(kwargs.get(key, [])) + self_libs
         return [_resolve_both_libs(t) for t in lib_list]
 
-    def get_recursive_targets(self) -> (T.List[T.Union[StaticLibrary, CustomTarget, CustomTargetIndex]], T.List[LibTypes], T.List[dependencies.Dependency]):
-        # TODO: Replace the sets with something else, also the type anotations are using lists
-        whole_targets = set()
-        dyn_targets = set()
-        exts = set()
-        for t in self.link_targets:
+    def get_recursive_targets(self) -> (T.Set[WholeLibTypes], T.Set[LibTypes], T.Set[dependencies.Dependency]):
+        whole_targets = set(self.link_whole_targets)
+        targets = set()
+        exts = set(self.external_deps)
+        stack = set(self.link_targets)
+        while stack:
+            t = stack.pop()
             if isinstance(t, SharedLibrary) or (isinstance(t, (CustomTarget, CustomTargetIndex)) and t.links_dynamically()):
-                dyn_targets.add(t)
+                targets.add(t)
                 continue
             whole_targets.add(t)
-            wt, dt, e = t.get_recursive_targets()
-            whole_targets |= wt
-            dyn_targets |= dt
-            exts |= e
-        for dep in self.external_deps:
-            if isinstance(dep, dependencies.InternalDependency):
-                continue
-            exts.add(dep)
-        return whole_targets, dyn_targets, exts
+            exts |= set(t.external_deps)
+            stack |= set(t.link_targets) - whole_targets - targets
+
+        return whole_targets, targets, exts
 
     def get(self, lib_type: T.Literal['static', 'shared', 'auto']) -> LibTypes:
         """Base case used by BothLibraries"""

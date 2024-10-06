@@ -25,7 +25,7 @@ if T.TYPE_CHECKING:
     from ..environment import Environment
     from ..interpreterbase import FeatureCheckBase
     from ..build import (
-        CustomTarget, IncludeDirs, CustomTargetIndex, LibTypes,
+        CustomTarget, IncludeDirs, CustomTargetIndex, LibTypes, WholeLibTypes,
         StaticLibrary, StructuredSources, ExtractedObjects, GeneratedTypes
     )
     from ..interpreter.type_checking import PkgConfigDefineType
@@ -269,15 +269,11 @@ class Dependency(HoldableObject):
         """Used as base case for internal_dependency"""
         return self
 
-    def get_all_libraries(self) -> T.List[LibTypes]:
-        """Used as base case for internal_dependency"""
-        return []
-
 class InternalDependency(Dependency):
     def __init__(self, version: str, incdirs: T.List['IncludeDirs'], compile_args: T.List[str],
                  link_args: T.List[str],
                  libraries: T.List[LibTypes],
-                 whole_libraries: T.List[T.Union[StaticLibrary, CustomTarget, CustomTargetIndex]],
+                 whole_libraries: T.List[WholeLibTypes],
                  sources: T.Sequence[T.Union[mesonlib.File, GeneratedTypes, StructuredSources]],
                  extra_files: T.Sequence[mesonlib.File],
                  ext_deps: T.List[Dependency], variables: T.Dict[str, str],
@@ -353,11 +349,10 @@ class InternalDependency(Dependency):
             return val
         raise DependencyException(f'Could not get an internal variable and no default provided for {self!r}')
 
-    # TODO: Add recursive argument
-    def generate_link_whole_dependency(self) -> Dependency:
+    def generate_link_whole_dependency(self, recursive: bool) -> Dependency:
         from ..build import SharedLibrary, CustomTarget, CustomTargetIndex
-        new_dep = copy.deepcopy(self)
-        for x in new_dep.libraries:
+
+        for x in self.libraries:
             if isinstance(x, SharedLibrary):
                 raise MesonException('Cannot convert a dependency to link_whole when it contains a '
                                      'SharedLibrary')
@@ -365,21 +360,45 @@ class InternalDependency(Dependency):
                 raise MesonException('Cannot convert a dependency to link_whole when it contains a '
                                      'CustomTarget or CustomTargetIndex which is a shared library')
 
-        ext_deps = self.ext_deps
+        # Early return if there is nothing to do
+        if not self.libraries and not self.ext_deps:
+            return self
+
+        new_dep = copy.deepcopy(self)
         new_dep.libraries = []
-        new_dep.ext_deps = []
+        if not recursive:
+            new_dep.whole_libraries += T.cast('T.List[WholeLibTypes]', self.libraries)
+            return new_dep
 
-        # TODO: Check for c++ library?
-        for lib in self.libraries:
-            whole_targets, dyn_targets, exts = lib.get_recursive_targets()
-            new_dep.whole_libraries += [lib] + list(whole_targets)
-            new_dep.libraries += list(dyn_targets)
-            ext_deps += list(exts)
+        whole_libraries = set()
+        libraries = set()
+        ext_deps = set()
+        visited_deps = set()
+        stack = set([self])
 
-        for dep in ext_deps:
-            if isinstance(dep, InternalDependency) and (len(dep.libraries) > 0 or len(dep.ext_deps) > 0):
-                dep = dep.generate_link_whole_dependency()
-            new_dep.ext_deps += [dep]
+        def add_exts(deps: T.Set[Dependency]):
+            nonlocal stack
+            nonlocal ext_deps
+            int_deps = {d for d in deps if isinstance(d, InternalDependency)}
+            stack |= int_deps - visited_deps
+            ext_deps |= deps - int_deps
+            ext_deps |= {d.get_partial_dependency(includes = True) for d in int_deps} # TODO: Compact this
+
+        while stack:
+            dep = stack.pop()
+            visited_deps.add(dep)
+            add_exts(set(dep.ext_deps))
+
+            whole_libraries |= set(dep.whole_libraries + dep.libraries)
+            for lib in dep.libraries:
+                whole_targets, targets, exts = lib.get_recursive_targets()
+                whole_libraries |= whole_targets
+                libraries |= targets
+                add_exts(exts)
+
+        new_dep.whole_libraries = list(whole_libraries)
+        new_dep.libraries = list(libraries)
+        new_dep.ext_deps = list(ext_deps)
 
         return new_dep
 

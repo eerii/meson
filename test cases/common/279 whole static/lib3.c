@@ -1,7 +1,3 @@
-
 int lib2(void);
 
-int lib3(void) {
-    return lib2();
-}
-
+int lib3(void) { return lib2(); }
