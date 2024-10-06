@@ -1747,22 +1747,6 @@ class BuildTarget(Target):
         lib_list = listify(kwargs.get(key, [])) + self_libs
         return [_resolve_both_libs(t) for t in lib_list]
 
-    def get_recursive_targets(self) -> (T.Set[WholeLibTypes], T.Set[LibTypes], T.Set[dependencies.Dependency]):
-        whole_targets = set(self.link_whole_targets)
-        targets = set()
-        exts = set(self.external_deps)
-        stack = set(self.link_targets)
-        while stack:
-            t = stack.pop()
-            if isinstance(t, SharedLibrary) or (isinstance(t, (CustomTarget, CustomTargetIndex)) and t.links_dynamically()):
-                targets.add(t)
-                continue
-            whole_targets.add(t)
-            exts |= set(t.external_deps)
-            stack |= set(t.link_targets) - whole_targets - targets
-
-        return whole_targets, targets, exts
-
     def get(self, lib_type: T.Literal['static', 'shared', 'auto']) -> LibTypes:
         """Base case used by BothLibraries"""
         return self

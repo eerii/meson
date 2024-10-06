@@ -276,6 +276,7 @@ class DependenciesHelper:
         # See remove_dups() below.
         self.link_whole_targets.append(t)
         if isinstance(t, build.BuildTarget):
+            # TODO: Fix how this is handled
             # self._add_lib_dependencies(t.link_targets, t.link_whole_targets, t.external_deps, public)
             self._add_lib_dependencies([], t.link_whole_targets, t.external_deps, public)
 

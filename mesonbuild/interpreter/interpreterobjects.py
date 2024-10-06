@@ -583,21 +583,12 @@ class DependencyHolder(ObjectHolder[Dependency]):
     @noPosargs
     @typed_kwargs(
         'dependency.as_link_whole',
-        KwargInfo('recursive', bool, default=False),
+        KwargInfo('recursive', bool, default=False, since='1.6.0'),
     )
     def as_link_whole_method(self, args: T.List[TYPE_var], kwargs: InternalDependencyAsKW) -> Dependency:
         if not isinstance(self.held_object, InternalDependency):
             raise InterpreterException('as_link_whole method is only supported on declare_dependency() objects')
-        import time
-        a = time.time()
-        dep = self.held_object.generate_link_whole_dependency(kwargs['recursive'])
-        print("TIME:", time.time() - a)
-        print("W", len(dep.whole_libraries))
-        print("L", len(dep.libraries))
-        print("E", len(dep.ext_deps))
-        print(dep.whole_libraries)
-        print(dep.ext_deps)
-        return dep
+        return self.held_object.generate_link_whole_dependency(kwargs['recursive'])
 
     @FeatureNew('dependency.as_static', '1.6.0')
     @noPosargs

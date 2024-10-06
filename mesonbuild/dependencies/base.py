@@ -373,6 +373,7 @@ class InternalDependency(Dependency):
         whole_libraries = set()
         libraries = set()
         ext_deps = set()
+        includes = set()
         visited_deps = set()
         stack = set([self])
 
@@ -382,7 +383,6 @@ class InternalDependency(Dependency):
             int_deps = {d for d in deps if isinstance(d, InternalDependency)}
             stack |= int_deps - visited_deps
             ext_deps |= deps - int_deps
-            ext_deps |= {d.get_partial_dependency(includes = True) for d in int_deps} # TODO: Compact this
 
         while stack:
             dep = stack.pop()
@@ -390,15 +390,25 @@ class InternalDependency(Dependency):
             add_exts(set(dep.ext_deps))
 
             whole_libraries |= set(dep.whole_libraries + dep.libraries)
+            includes |= set(dep.include_directories)
+
             for lib in dep.libraries:
-                whole_targets, targets, exts = lib.get_recursive_targets()
-                whole_libraries |= whole_targets
-                libraries |= targets
+                exts = set(lib.external_deps)
+                lib_stack = set(lib.link_targets)
+                while lib_stack:
+                    t = lib_stack.pop()
+                    if isinstance(t, SharedLibrary) or (isinstance(t, (CustomTarget, CustomTargetIndex)) and t.links_dynamically()):
+                        libraries.add(t)
+                        continue
+                    whole_libraries.add(t)
+                    exts |= set(t.external_deps)
+                    lib_stack |= set(t.link_targets) - whole_libraries - libraries
                 add_exts(exts)
 
         new_dep.whole_libraries = list(whole_libraries)
         new_dep.libraries = list(libraries)
         new_dep.ext_deps = list(ext_deps)
+        new_dep.include_directories = list(includes)
 
         return new_dep
 
